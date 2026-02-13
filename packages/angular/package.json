@@ -1,0 +1,39 @@
+{
+  "name": "@locator/angular",
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch --preserveWatchOutput",
+    "test": "vitest run"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@locator/dev-config": "workspace:^",
+    "@types/node": "^22.9.0",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.9"
+  },
+  "peerDependencies": {
+    "webpack": "^5.0.0",
+    "esbuild": ">=0.14.0"
+  },
+  "peerDependenciesMeta": {
+    "webpack": {
+      "optional": true
+    },
+    "esbuild": {
+      "optional": true
+    }
+  },
+  "author": "",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/infi-pc/locatorjs"
+  },
+  "license": "MIT"
+}

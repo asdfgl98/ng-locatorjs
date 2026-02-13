@@ -2,12 +2,14 @@ import reactAdapter from "./react/reactAdapter";
 import jsxAdapter from "./jsx/jsxAdapter";
 import svelteAdapter from "./svelte/svelteAdapter";
 import {
+  detectAngular,
   detectJSX,
   detectReact,
   detectSvelte,
   detectVue,
 } from "@locator/shared";
 import vueAdapter from "./vue/vueAdapter";
+import angularAdapter from "./angular/angularAdapter";
 
 export function getTree(target: HTMLElement, adapterId?: string) {
   if (adapterId === "react" && reactAdapter.getTree) {
@@ -22,6 +24,9 @@ export function getTree(target: HTMLElement, adapterId?: string) {
   if (adapterId === "jsx" && jsxAdapter.getTree) {
     return jsxAdapter.getTree(target);
   }
+  if (adapterId === "angular" && angularAdapter.getTree) {
+    return angularAdapter.getTree(target);
+  }
 
   if (detectSvelte() && svelteAdapter.getTree) {
     return svelteAdapter.getTree(target);
@@ -33,6 +38,10 @@ export function getTree(target: HTMLElement, adapterId?: string) {
 
   if (detectReact() && reactAdapter.getTree) {
     return reactAdapter.getTree(target);
+  }
+
+  if (detectAngular() && angularAdapter.getTree) {
+    return angularAdapter.getTree(target);
   }
 
   // Must be last, because its global data leaks from Locator extension.

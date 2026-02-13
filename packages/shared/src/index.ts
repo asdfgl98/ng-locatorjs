@@ -96,6 +96,22 @@ export function detectJSX() {
   return false;
 }
 
+export function detectAngular() {
+  // Check for Angular debug utilities (available in dev mode)
+  // @ts-ignore
+  if (window.ng && typeof window.ng.getComponent === "function") {
+    return true;
+  }
+  // Check for ng-version attribute on root element
+  if (typeof document !== "undefined") {
+    const ngVersionElement = document.querySelector("[ng-version]");
+    if (ngVersionElement) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function detectReact() {
   // @ts-ignore
   if (window.__REACT_DEVTOOLS_GLOBAL_HOOK__) {
