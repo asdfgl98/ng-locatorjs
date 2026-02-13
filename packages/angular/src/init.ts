@@ -18,11 +18,10 @@ function initLocator(): void {
     return;
   }
 
-  const setup = () => {
-    // Dynamically load the locatorjs runtime
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const setup = async () => {
     try {
-      const locatorModule = require("@locator/runtime");
+      const dynamicImport = new Function("specifier", "return import(specifier)");
+      const locatorModule = await dynamicImport("@locator/runtime");
       if (typeof locatorModule.setup === "function") {
         locatorModule.setup({});
       }

@@ -1,6 +1,7 @@
 {
   "name": "@locator/runtime",
   "main": "dist/index.js",
+  "module": "dist/index.js",
   "version": "0.5.1",
   "scripts": {
     "test": "vitest run",
