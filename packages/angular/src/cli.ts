@@ -1,0 +1,273 @@
+#!/usr/bin/env node
+/**
+ * CLI tool to scan Angular components and generate a component map.
+ *
+ * Usage:
+ *   npx locator-angular-scan [options]
+ *
+ * Options:
+ *   --output, -o    Output file path (default: .locator/component-map.json)
+ *   --config, -c    Config file path (default: locator.config.json)
+ *   --watch, -w     Watch for file changes
+ */
+
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+interface ComponentInfo {
+  className: string;
+  filePath: string;
+  selector: string | null;
+}
+
+interface ComponentMap {
+  [className: string]: {
+    filePath: string;
+    selector: string | null;
+  };
+}
+
+interface LocatorConfig {
+  /** Glob patterns for files to scan */
+  include?: string[];
+  /** Directories to exclude */
+  exclude?: string[];
+  /** Output file path */
+  output?: string;
+}
+
+const DEFAULT_CONFIG: LocatorConfig = {
+  include: [
+    "src/**/*.component.ts",
+    "src/**/*.page.ts",
+    "src/**/*.modal.ts",
+    "src/**/*.dialog.ts",
+    "src/**/*.panel.ts",
+    "apps/**/*.component.ts",
+    "apps/**/*.page.ts",
+    "apps/**/*.modal.ts",
+    "apps/**/*.dialog.ts",
+    "apps/**/*.panel.ts",
+    "libs/**/*.component.ts",
+    "libs/**/*.page.ts",
+    "libs/**/*.modal.ts",
+    "libs/**/*.dialog.ts",
+    "libs/**/*.panel.ts",
+  ],
+  exclude: ["node_modules", "dist", ".git", "coverage"],
+  output: ".locator/component-map.json",
+};
+
+function loadConfig(configPath: string): LocatorConfig {
+  if (!fs.existsSync(configPath)) {
+    return DEFAULT_CONFIG;
+  }
+
+  try {
+    const content = fs.readFileSync(configPath, "utf-8");
+    const userConfig = JSON.parse(content);
+    return { ...DEFAULT_CONFIG, ...userConfig };
+  } catch (e) {
+    console.warn(`[@locator/angular] Failed to load config from ${configPath}, using defaults`);
+    return DEFAULT_CONFIG;
+  }
+}
+
+function matchGlob(filename: string, pattern: string): boolean {
+  // Convert glob pattern to regex
+  // Order matters: escape dots first, then handle **, then *
+  const regexStr = pattern
+    .replace(/\./g, "\\.")           // Escape dots first
+    .replace(/\*\*/g, "<<DOUBLE_STAR>>")  // Temporarily replace **
+    .replace(/\*/g, "[^/]*")         // Replace single * with [^/]*
+    .replace(/<<DOUBLE_STAR>>/g, ".*")    // Replace ** with .*
+    .replace(/\?/g, "[^/]");         // Replace ? with [^/]
+
+  const regex = new RegExp(`^${regexStr}$`);
+  return regex.test(filename);
+}
+
+function findFiles(projectRoot: string, config: LocatorConfig): string[] {
+  const files: string[] = [];
+  const excludePatterns = config.exclude || [];
+
+  function scan(dir: string) {
+    if (!fs.existsSync(dir)) return;
+
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+
+      if (entry.isDirectory()) {
+        // Skip excluded directories
+        if (excludePatterns.some((ex) => entry.name.includes(ex) || fullPath.includes(ex))) {
+          continue;
+        }
+        scan(fullPath);
+      } else if (entry.name.endsWith(".ts") && !entry.name.endsWith(".spec.ts")) {
+        const relativePath = path.relative(projectRoot, fullPath).replace(/\\/g, "/");
+
+        // Check if file matches any include pattern
+        for (const pattern of config.include || []) {
+          if (matchGlob(relativePath, pattern)) {
+            files.push(fullPath);
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  scan(projectRoot);
+  return files;
+}
+
+function extractComponentInfo(filePath: string, projectRoot: string): ComponentInfo[] {
+  const content = fs.readFileSync(filePath, "utf-8");
+  const components: ComponentInfo[] = [];
+  const relativePath = path.relative(projectRoot, filePath).replace(/\\/g, "/");
+
+  // Find @Component decorators with selector and class name
+  // Supports both 'export class' and 'export default class'
+  const componentMatches = content.matchAll(
+    /@Component\s*\(\s*\{[\s\S]*?selector\s*:\s*['"`](.*?)['"`][\s\S]*?\}\s*\)\s*(?:\n|\s)*export\s+(?:default\s+)?class\s+(\w+)/g
+  );
+
+  for (const match of componentMatches) {
+    const selector = match[1];
+    const className = match[2];
+
+    components.push({
+      className,
+      filePath: relativePath,
+      selector,
+    });
+  }
+
+  // If no @Component found, try to find classes with naming patterns
+  if (components.length === 0) {
+    // Look for classes ending with Component, Page, Modal, Dialog, Panel
+    // Supports both 'export class' and 'export default class'
+    const classMatches = content.matchAll(
+      /export\s+(?:default\s+)?class\s+(\w+(?:Component|Page|Modal|Dialog|Panel))/g
+    );
+
+    for (const match of classMatches) {
+      const className = match[1];
+
+      // Try to find selector in the file
+      const selectorMatch = content.match(/selector\s*:\s*['"`](.*?)['"`]/);
+      const selector = selectorMatch ? selectorMatch[1] : null;
+
+      components.push({
+        className,
+        filePath: relativePath,
+        selector,
+      });
+    }
+  }
+
+  return components;
+}
+
+function generateComponentMap(projectRoot: string, config: LocatorConfig): ComponentMap {
+  const files = findFiles(projectRoot, config);
+  const map: ComponentMap = {};
+
+  for (const file of files) {
+    const components = extractComponentInfo(file, projectRoot);
+    for (const comp of components) {
+      const entry = {
+        filePath: comp.filePath,
+        selector: comp.selector,
+      };
+      // Add original name
+      map[comp.className] = entry;
+      // Also add with underscore prefix (Angular adds this in some cases)
+      map[`_${comp.className}`] = entry;
+    }
+  }
+
+  return map;
+}
+
+function main() {
+  const args = process.argv.slice(2);
+  let configPath = "locator.config.json";
+  let outputPath: string | null = null;
+  let shouldWatch = false;
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--config" || arg === "-c") {
+      configPath = args[++i];
+    } else if (arg === "--output" || arg === "-o") {
+      outputPath = args[++i];
+    } else if (arg === "--watch" || arg === "-w") {
+      shouldWatch = true;
+    }
+  }
+
+  const projectRoot = process.cwd();
+  const absoluteConfigPath = path.resolve(projectRoot, configPath);
+  const config = loadConfig(absoluteConfigPath);
+  const finalOutputPath = outputPath || config.output || ".locator/component-map.json";
+  const absoluteOutputPath = path.resolve(projectRoot, finalOutputPath);
+
+  function scan() {
+    console.log(`[@locator/angular] Scanning project...`);
+    console.log(`[@locator/angular] Include patterns: ${config.include?.join(", ")}`);
+    const map = generateComponentMap(projectRoot, config);
+    const count = Object.keys(map).length;
+    console.log(`[@locator/angular] Found ${count} components`);
+
+    // Ensure output directory exists
+    const outputDir = path.dirname(absoluteOutputPath);
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true });
+    }
+
+    fs.writeFileSync(absoluteOutputPath, JSON.stringify(map, null, 2));
+    console.log(`[@locator/angular] Component map saved to ${finalOutputPath}`);
+  }
+
+  scan();
+
+  if (shouldWatch) {
+    console.log(`[@locator/angular] Watching for changes...`);
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+    // Watch all directories in include patterns
+    const watchDirs = new Set<string>();
+    for (const pattern of config.include || []) {
+      const parts = pattern.split("/");
+      if (parts[0] && !parts[0].includes("*")) {
+        watchDirs.add(path.join(projectRoot, parts[0]));
+      }
+    }
+
+    // Always watch project root if no specific dirs found
+    if (watchDirs.size === 0) {
+      watchDirs.add(projectRoot);
+    }
+
+    for (const dir of watchDirs) {
+      if (fs.existsSync(dir)) {
+        fs.watch(dir, { recursive: true }, (eventType, filename) => {
+          if (filename && filename.endsWith(".ts") && !filename.endsWith(".spec.ts")) {
+            if (debounceTimer) clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(scan, 300);
+          }
+        });
+      }
+    }
+
+    console.log(`[@locator/angular] Watching directories: ${Array.from(watchDirs).join(", ")}`);
+  }
+}
+
+main();

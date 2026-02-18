@@ -1,0 +1,21 @@
+name: 🐞 Bug Report
+description: Create a bug report to help us improve
+title: "bug: "
+labels: ["🐞❔ unconfirmed bug"]
+body:
+  - type: checkboxes
+    attributes:
+      label: Where the bug happens
+      options:
+        - label: Browser Extension
+        - label: Library
+        - label: Other
+  - type: input
+    attributes:
+      label: your browser
+  - type: textarea
+    attributes:
+      label: Describe the bug
+      description: A clear and consice description of the bug, as well as what you expected to happen when encountering it.
+    validations:
+      required: true

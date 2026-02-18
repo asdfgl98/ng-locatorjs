@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm install:*)",
+      "Bash(pnpm build)",
+      "Bash(pnpm link:global:*)",
+      "Bash(pnpm help link:*)",
+      "Bash(pnpm link:npm:*)",
+      "Bash(ls:*)",
+      "Bash(npm install:*)",
+      "Bash(npm link:*)",
+      "Bash(node:*)",
+      "Bash(npx ng build:*)",
+      "Bash(pnpm add:*)",
+      "Bash(timeout 30 npx vite:*)",
+      "Bash(npx vite build:*)",
+      "Bash(cat:*)",
+      "Bash(grep:*)",
+      "Bash(head:*)",
+      "Bash(./setup-link.bat:*)",
+      "Bash(curl:*)",
+      "Bash(timeout:*)",
+      "WebSearch",
+      "Bash(netstat:*)",
+      "Bash(taskkill:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm run)",
+      "Bash(npm run build:*)",
+      "Bash(npx locator-angular-scan:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}
