@@ -1,6 +1,17 @@
 # ng-locator
 
-브라우저에서 `Alt + 클릭`으로 Angular 컴포넌트 소스를 에디터에서 바로 여는 개발 도구입니다.
+브라우저에서 `Alt + 클릭`으로 Angular 컴포넌트의 **템플릿 태그 라인**을 에디터에서 바로 여는 개발 도구입니다.
+
+![ng-locator demo](docs/ng-locator-demo.gif)
+
+## 주요 기능
+
+- **Alt + 클릭** → 클릭한 태그가 위치한 **템플릿 파일의 정확한 라인**으로 에디터 이동
+- **Alt 키** → 컴포넌트들이 파란색 테두리로 하이라이트
+- **마우스 호버** → 컴포넌트 정보 툴팁 표시
+- **Watch 모드** → 파일 변경 시 자동 재스캔 (별도 스캔 명령 불필요)
+
+---
 
 ## 설치
 
@@ -8,7 +19,7 @@
 npm install github:asdfgl98/ng-locatorjs
 ```
 
-## 사용법
+## 빠른 시작
 
 ### 1. main.ts에 추가
 
@@ -18,11 +29,10 @@ import { appConfig } from './app/app.config';
 import { AppComponent } from './app/app.component';
 import { installAngularLocator } from 'ng-locator';
 
-// Angular가 로드될 때까지 대기 후 설치
 function initLocator() {
   if ((window as any).ng?.getComponent) {
     installAngularLocator({
-      editor: 'antigravity',  // 'cursor' | 'code' | 'webstorm' | 'windsurf' | 'antigravity'
+      editor: 'cursor',  // 'cursor' | 'code' | 'webstorm' | 'windsurf' | 'antigravity'
     });
   } else {
     setTimeout(initLocator, 100);
@@ -38,48 +48,47 @@ if (document.readyState === 'complete') {
 bootstrapApplication(AppComponent, appConfig).catch(console.error);
 ```
 
-### 2. 컴포넌트 스캔
-
-```bash
-npx ng-locator-scan
-```
-
-### 3. 서버 실행
-
-```bash
-npx ng-locator-server --editor antigravity
-```
-
-### 4. Angular 개발 서버 실행
-
-```bash
-ng serve
-```
-
-### 5. 사용
-
-- **Alt 키 누르기** → 컴포넌트들이 파란색 테두리로 표시
-- **마우스 이동** → 주황색 하이라이트 + 컴포넌트 정보 툴팁
-- **Alt + 클릭** → 에디터에서 **해당 태그가 위치한 템플릿 라인**으로 바로 이동
-
-### 간소화 모드 (스캔 + 서버 통합)
-
-`ng-locator-scan`을 별도로 실행하지 않고 서버에서 자동 스캔 + watch:
+### 2. 서버 실행 (Watch 모드)
 
 ```bash
 npx ng-locator-server --editor antigravity --watch
 ```
 
-이 모드에서는:
-- 서버 시작 시 자동으로 컴포넌트 스캔
-- `.ts` / `.html` 파일 변경 감지 시 자동 재스캔
-- 별도의 `ng-locator-scan` 실행 불필요
+> Watch 모드는 스캔 + 서버를 통합하여 **별도의 `ng-locator-scan` 실행이 불필요**합니다.
+> `.ts` / `.html` 파일 변경 시 자동으로 재스캔됩니다.
+
+### 3. Angular 개발 서버 실행
+
+```bash
+ng serve
+```
+
+### 4. 사용
+
+`Alt` 키를 누른 채 원하는 요소를 클릭하면 에디터에서 해당 템플릿 라인이 열립니다.
 
 ---
 
-## CLI 명령어
+## CLI 옵션
+
+### `ng-locator-server`
+
+```bash
+npx ng-locator-server [options]
+
+Options:
+  --port, -p     서버 포트 (기본값: 4123)
+  --editor, -e   에디터 (cursor, code, webstorm, windsurf, antigravity)
+  --watch, -w    자동 스캔 + 파일 감시 모드
+  --config, -c   스캔 설정 파일 경로 (기본값: locator.config.json)
+  --include, -i  추가 스캔 패턴 (여러 번 사용 가능)
+  --exclude, -x  추가 제외 디렉토리 (여러 번 사용 가능)
+  --map, -m      컴포넌트 맵 파일 경로
+```
 
 ### `ng-locator-scan`
+
+Watch 모드를 사용하지 않을 경우 별도로 스캔할 수 있습니다.
 
 ```bash
 npx ng-locator-scan [options]
@@ -90,67 +99,32 @@ Options:
   --watch, -w    파일 변경 감지 모드
 ```
 
-### `ng-locator-server`
+---
+
+## 커스텀 설정
+
+### CLI에서 직접 패턴 추가
 
 ```bash
-npx ng-locator-server [options]
-
-Options:
-  --port, -p     서버 포트 (기본값: 4123)
-  --editor, -e   에디터 (cursor, code, webstorm, windsurf, antigravity)
-  --map, -m      컴포넌트 맵 파일 경로
-  --watch, -w    자동 스캔 + 파일 감시 모드 (ng-locator-scan 불필요)
-  --config, -c   스캔 설정 파일 경로 (기본값: locator.config.json)
-  --include, -i  추가 스캔 패턴 (여러 번 사용 가능, 기본 패턴에 추가됨)
-  --exclude, -x  추가 제외 디렉토리 (여러 번 사용 가능)
-```
-
-#### 커스텀 패턴 예시
-
-```bash
-# 기본 패턴 + 커스텀 패턴 추가
 npx ng-locator-server --editor cursor --watch \
   --include "projects/**/*.component.ts" \
-  --include "custom/**/*.widget.ts" \
   --exclude "test-utils"
 ```
 
-> `--include`/`--exclude`는 기존 기본 패턴에 **추가**됩니다. 기본 패턴을 완전히 교체하려면 `locator.config.json` 파일을 사용하세요.
+> `--include`/`--exclude`는 기본 패턴에 **추가**됩니다.
 
----
+### 설정 파일 (`locator.config.json`)
 
-## 지원 파일 패턴
-
-| 패턴 | 설명 |
-|------|------|
-| `**/*.component.ts` | 컴포넌트 |
-| `**/*.page.ts` | 페이지 |
-| `**/*.modal.ts` | 모달 |
-| `**/*.dialog.ts` | 다이얼로그 |
-| `**/*.panel.ts` | 패널 |
-
-### 커스텀 설정 (`locator.config.json`)
+기본 패턴을 완전히 교체하려면 설정 파일을 사용하세요.
 
 ```json
 {
   "include": [
-    "src/**/*.component.ts",
-    "apps/**/*.{component,page,modal}.ts"
+    "src/**/*.ts",
+    "projects/**/*.ts"
   ],
   "exclude": ["node_modules", "dist", ".git"],
   "output": ".locator/component-map.json"
-}
-```
-
----
-
-## 옵션
-
-```typescript
-interface AngularLocatorOptions {
-  port?: number;              // 서버 포트 (기본값: 4123)
-  editor?: 'cursor' | 'code' | 'webstorm' | 'windsurf' | 'antigravity';
-  modifier?: 'alt' | 'ctrl' | 'meta' | 'shift';  // 클릭 키 (기본값: 'alt')
 }
 ```
 
@@ -161,14 +135,22 @@ interface AngularLocatorOptions {
 ```json
 {
   "scripts": {
-    "locator:scan": "ng-locator-scan",
-    "locator:server": "ng-locator-server --editor cursor --watch",
-    "dev": "concurrently \"npm run locator:server\" \"ng serve\""
+    "locator": "ng-locator-server --editor cursor --watch",
   }
 }
 ```
 
-> `--watch` 옵션 사용 시 `locator:scan`을 별도로 실행할 필요가 없습니다.
+---
+
+## 런타임 옵션
+
+```typescript
+interface AngularLocatorOptions {
+  port?: number;              // 서버 포트 (기본값: 4123)
+  editor?: 'cursor' | 'code' | 'webstorm' | 'windsurf' | 'antigravity';
+  modifier?: 'alt' | 'ctrl' | 'meta' | 'shift';  // 클릭 키 (기본값: 'alt')
+}
+```
 
 ---
 
@@ -182,15 +164,11 @@ interface AngularLocatorOptions {
 
 ## 문제 해결
 
-### 컴포넌트가 열리지 않음
-
-1. `ng-locator-scan` 실행 확인
-2. `ng-locator-server` 실행 확인 (포트 4123)
-3. 브라우저 콘솔에 에러 확인
-
-### Angular not detected
-
-개발 모드(`ng serve`)로 실행 중인지 확인하세요.
+| 문제 | 해결 방법 |
+|------|-----------|
+| 컴포넌트가 열리지 않음 | `ng-locator-server` 실행 확인 (포트 4123) |
+| Angular not detected | 개발 모드(`ng serve`)로 실행 중인지 확인 |
+| 태그 라인이 안 맞음 | `/__locator__/reload` 엔드포인트로 재스캔 |
 
 ---
 
