@@ -259,7 +259,8 @@ function findTagLine(templateRelativePath, tagName) {
         }
         // Search for the tag in template content
         // Use regex to match exact tag name (e.g. <p> should not match <path>)
-        const tagRegex = new RegExp(`<${tagName}(?=[\\s>/])`, "i");
+        // (?=[\s>/]|$) ensures tag boundary: space, >, /, or end of line (multi-line attributes)
+        const tagRegex = new RegExp(`<${tagName}(?=[\\s>/]|$)`, "i");
         for (let i = templateStartLine; i < lines.length; i++) {
             const match = tagRegex.exec(lines[i]);
             if (match) {

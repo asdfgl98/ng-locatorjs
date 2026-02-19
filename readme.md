@@ -16,7 +16,7 @@ npm install github:asdfgl98/ng-locatorjs
 import { bootstrapApplication } from '@angular/platform-browser';
 import { appConfig } from './app/app.config';
 import { AppComponent } from './app/app.component';
-import { installAngularLocator } from 'ng-locator/runtime';
+import { installAngularLocator } from 'ng-locator';
 
 // Angular가 로드될 때까지 대기 후 설치
 function initLocator() {
