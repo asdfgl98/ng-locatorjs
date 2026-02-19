@@ -52,14 +52,15 @@ function loadComponentMap() {
 function getEditorScheme(editor) {
     return EDITOR_SCHEMES[editor] || EDITOR_SCHEMES.cursor;
 }
-function openFile(filePath, line = 1, column = 1) {
-    const editor = options.editor || "cursor";
-    const absolutePath = path.resolve(process.cwd(), filePath);
-    const scheme = getEditorScheme(editor)
-        .replace("${filePath}", absolutePath)
-        .replace("${line}", String(line))
-        .replace("${column}", String(column));
-    console.log(`[@locator/angular-server] Opening: ${scheme}`);
+function openFile(filePath, line = 1, column = 1, overrideEditor) {
+    const editor = overrideEditor || options.editor || "cursor";
+    let absolutePath = path.resolve(process.cwd(), filePath);
+    // Normalize Windows paths for URI schemes (replace \ with /)
+    if (process.platform === "win32") {
+        absolutePath = absolutePath.replace(/\\/g, "/");
+    }
+    const scheme = getEditorScheme(editor).replace("${filePath}", absolutePath).replace("${line}", String(line)).replace("${column}", String(column));
+    console.log(`[@locator/angular-server] Opening (${editor}): ${scheme}`);
     try {
         const platform = process.platform;
         if (platform === "win32") {
@@ -101,12 +102,13 @@ function handleRequest(req, res) {
         const filePath = urlObj.searchParams.get("file");
         const line = parseInt(urlObj.searchParams.get("line") || "1", 10);
         const column = parseInt(urlObj.searchParams.get("column") || "1", 10);
+        const editor = urlObj.searchParams.get("editor") || undefined;
         if (!filePath) {
             res.writeHead(400, { "Content-Type": "application/json" });
             res.end(JSON.stringify({ error: "Missing file parameter" }));
             return;
         }
-        const success = openFile(filePath, line, column);
+        const success = openFile(filePath, line, column, editor);
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ success }));
         return;
@@ -116,6 +118,7 @@ function handleRequest(req, res) {
         const componentName = urlObj.searchParams.get("component");
         const line = parseInt(urlObj.searchParams.get("line") || "1", 10);
         const column = parseInt(urlObj.searchParams.get("column") || "1", 10);
+        const editor = urlObj.searchParams.get("editor") || undefined;
         if (!componentName) {
             res.writeHead(400, { "Content-Type": "application/json" });
             res.end(JSON.stringify({ error: "Missing component parameter" }));
@@ -127,7 +130,7 @@ function handleRequest(req, res) {
             res.end(JSON.stringify({ error: `Component not found: ${componentName}` }));
             return;
         }
-        const success = openFile(componentInfo.filePath, line, column);
+        const success = openFile(componentInfo.filePath, line, column, editor);
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ success, filePath: componentInfo.filePath }));
         return;

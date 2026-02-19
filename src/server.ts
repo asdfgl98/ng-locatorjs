@@ -64,16 +64,18 @@ function getEditorScheme(editor: string): string {
   return EDITOR_SCHEMES[editor] || EDITOR_SCHEMES.cursor;
 }
 
-function openFile(filePath: string, line: number = 1, column: number = 1): boolean {
-  const editor = options.editor || "cursor";
-  const absolutePath = path.resolve(process.cwd(), filePath);
+function openFile(filePath: string, line: number = 1, column: number = 1, overrideEditor?: string): boolean {
+  const editor = overrideEditor || options.editor || "cursor";
+  let absolutePath = path.resolve(process.cwd(), filePath);
 
-  const scheme = getEditorScheme(editor)
-    .replace("${filePath}", absolutePath)
-    .replace("${line}", String(line))
-    .replace("${column}", String(column));
+  // Normalize Windows paths for URI schemes (replace \ with /)
+  if (process.platform === "win32") {
+    absolutePath = absolutePath.replace(/\\/g, "/");
+  }
 
-  console.log(`[@locator/angular-server] Opening: ${scheme}`);
+  const scheme = getEditorScheme(editor).replace("${filePath}", absolutePath).replace("${line}", String(line)).replace("${column}", String(column));
+
+  console.log(`[@locator/angular-server] Opening (${editor}): ${scheme}`);
 
   try {
     const platform = process.platform;
@@ -118,6 +120,7 @@ function handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
     const filePath = urlObj.searchParams.get("file");
     const line = parseInt(urlObj.searchParams.get("line") || "1", 10);
     const column = parseInt(urlObj.searchParams.get("column") || "1", 10);
+    const editor = urlObj.searchParams.get("editor") || undefined;
 
     if (!filePath) {
       res.writeHead(400, { "Content-Type": "application/json" });
@@ -125,7 +128,7 @@ function handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
       return;
     }
 
-    const success = openFile(filePath, line, column);
+    const success = openFile(filePath, line, column, editor);
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ success }));
     return;
@@ -136,6 +139,7 @@ function handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
     const componentName = urlObj.searchParams.get("component");
     const line = parseInt(urlObj.searchParams.get("line") || "1", 10);
     const column = parseInt(urlObj.searchParams.get("column") || "1", 10);
+    const editor = urlObj.searchParams.get("editor") || undefined;
 
     if (!componentName) {
       res.writeHead(400, { "Content-Type": "application/json" });
@@ -150,7 +154,7 @@ function handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
       return;
     }
 
-    const success = openFile(componentInfo.filePath, line, column);
+    const success = openFile(componentInfo.filePath, line, column, editor);
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ success, filePath: componentInfo.filePath }));
     return;

@@ -231,8 +231,12 @@ function deactivateHighlight(): void {
  */
 function handleKeyDown(event: KeyboardEvent): void {
   const modifierKey = `${options.modifier}Key` as keyof KeyboardEvent;
-  if (event[modifierKey] && !isActive) {
-    activateHighlight();
+  if (event[modifierKey]) {
+    if (!isActive) {
+      activateHighlight();
+    }
+    // Prevent default browser behavior (e.g. Menu bar on Windows, system shortcuts on Mac/Linux)
+    event.preventDefault();
   }
 }
 
@@ -315,12 +319,11 @@ async function fetchComponentMap(): Promise<ComponentMap> {
  * Open a file in the editor via the server.
  */
 async function openFile(filePath: string, line: number = 1, column: number = 1): Promise<boolean> {
-  const url = options.openUrlTemplate ||
-    `http://localhost:${options.port}/__locator__/open?file=${encodeURIComponent(filePath)}&line=${line}&column=${column}`;
+  const url = options.openUrlTemplate || `http://localhost:${options.port}/__locator__/open?file=${encodeURIComponent(filePath)}&line=${line}&column=${column}&editor=${options.editor}`;
 
   try {
     const response = await fetch(url);
-    const result = await response.json() as { success?: boolean };
+    const result = (await response.json()) as { success?: boolean };
     return result.success === true;
   } catch {
     return false;
