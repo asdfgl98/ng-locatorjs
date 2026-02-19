@@ -1,45 +1,56 @@
 {
-  "name": "turborepo-basic-shared",
-  "version": "0.0.0",
-  "private": true,
-  "workspaces": [
-    "apps/*",
-    "packages/*"
+  "name": "ng-locator",
+  "version": "0.1.0",
+  "description": "Click any Angular component to open its source code in your IDE",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "ng-locator-scan": "dist/cli.js",
+    "ng-locator-server": "dist/server.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime.d.ts",
+      "import": "./dist/runtime.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
   ],
   "scripts": {
-    "build": "turbo run build",
-    "dev": "turbo run dev --parallel",
-    "lint": "turbo run lint",
-    "test": "turbo run test",
-    "ts": "turbo run ts",
-    "e2e": "turbo run e2e",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "publishPackages": "lerna publish",
-    "link:global": "pnpm -C packages/angular link --global && pnpm -C packages/runtime link --global && pnpm -C packages/shared link --global",
-    "unlink:global": "pnpm -C packages/angular unlink --global && pnpm -C packages/runtime unlink --global && pnpm -C packages/shared unlink --global",
-    "link:npm": "cd packages/angular && npm link && cd ../runtime && npm link && cd ../shared && npm link",
-    "unlink:npm": "cd packages/angular && npm unlink && cd ../runtime && npm unlink && cd ../shared && npm unlink",
-    "clean": "concurrently pnpm:clean:*",
-    "clean:node_modules": "rm -rf node_modules && rm -rf */*/node_modules",
-    "clean:dist": "rm -rf */*/dist",
-    "clean:turbo": "rm -rf */*/.turbo",
-    "clean:next": "rm -rf */*/.next",
-    "dependency-versions": "check-dependency-version-consistency . --ignore-package-pattern='(vite|next)-.*'",
-    "dependency-versions:fix": "check-dependency-version-consistency . --fix --ignore-package-pattern='(vite|next)-.*'"
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
   },
   "devDependencies": {
-    "check-dependency-version-consistency": "5.0.1",
-    "lerna": "^7.3.0",
-    "prettier": "^2.8.8",
-    "turbo": "^2.5.8",
-    "vitest": "^2.1.4",
-    "@babel/preset-env": "^7.26.0",
-    "@babel/preset-typescript": "^7.26.0"
+    "@types/node": "^22.9.0",
+    "typescript": "^5.6.3"
   },
-  "engines": {
-    "npm": ">=7.0.0",
-    "node": ">=22.0.0"
+  "peerDependencies": {
+    "@angular/core": ">=14.0.0"
   },
-  "packageManager": "pnpm@8.7.5",
-  "dependencies": {}
+  "keywords": [
+    "angular",
+    "locator",
+    "locatorjs",
+    "devtools",
+    "ide",
+    "cursor",
+    "vscode"
+  ],
+  "author": "asdfgl98",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/asdfgl98/ng-locatorjs"
+  },
+  "bugs": {
+    "url": "https://github.com/asdfgl98/ng-locatorjs/issues"
+  },
+  "homepage": "https://github.com/asdfgl98/ng-locatorjs#readme"
 }
