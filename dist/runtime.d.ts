@@ -23,6 +23,7 @@ export interface AngularLocatorOptions {
 interface ComponentMapEntry {
     filePath: string;
     selector: string | null;
+    templateFilePath: string | null;
 }
 interface ComponentMap {
     [className: string]: ComponentMapEntry;

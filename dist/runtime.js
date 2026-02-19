@@ -265,8 +265,11 @@ async function fetchComponentMap() {
 /**
  * Open a file in the editor via the server.
  */
-async function openFile(filePath, line = 1, column = 1) {
-    const url = options.openUrlTemplate || `http://localhost:${options.port}/__locator__/open?file=${encodeURIComponent(filePath)}&line=${line}&column=${column}&editor=${options.editor}`;
+async function openFile(filePath, line = 1, column = 1, tag) {
+    let url = options.openUrlTemplate || `http://localhost:${options.port}/__locator__/open?file=${encodeURIComponent(filePath)}&line=${line}&column=${column}&editor=${options.editor}`;
+    if (tag) {
+        url += `&tag=${encodeURIComponent(tag)}`;
+    }
     try {
         const response = await fetch(url);
         const result = (await response.json());
@@ -279,15 +282,40 @@ async function openFile(filePath, line = 1, column = 1) {
 /**
  * Open a component by its class name.
  */
-async function openComponent(componentName) {
+async function openComponent(componentName, targetTag) {
     const entry = componentMap[componentName];
     if (entry) {
+        // If templateFilePath exists and tag is given, open via open-component endpoint
+        if (targetTag && entry.templateFilePath) {
+            const url = `http://localhost:${options.port}/__locator__/open-component?component=${encodeURIComponent(componentName)}&tag=${encodeURIComponent(targetTag)}&editor=${options.editor}`;
+            try {
+                const response = await fetch(url);
+                const result = (await response.json());
+                if (result.success === true)
+                    return true;
+            }
+            catch {
+                // Fallback to opening ts file
+            }
+        }
         return openFile(entry.filePath);
     }
     const freshMap = await fetchComponentMap();
     const freshEntry = freshMap[componentName];
     if (freshEntry) {
         componentMap = freshMap;
+        if (targetTag && freshEntry.templateFilePath) {
+            const url = `http://localhost:${options.port}/__locator__/open-component?component=${encodeURIComponent(componentName)}&tag=${encodeURIComponent(targetTag)}&editor=${options.editor}`;
+            try {
+                const response = await fetch(url);
+                const result = (await response.json());
+                if (result.success === true)
+                    return true;
+            }
+            catch {
+                // Fallback
+            }
+        }
         return openFile(freshEntry.filePath);
     }
     return false;
@@ -313,7 +341,8 @@ function handleClick(event) {
         if (highlightedElements.has(current)) {
             const info = getAngularComponent(current);
             if (info) {
-                openComponent(info.name);
+                const clickedTag = target.tagName.toLowerCase();
+                openComponent(info.name, clickedTag);
                 return;
             }
         }
@@ -324,7 +353,8 @@ function handleClick(event) {
     while (current) {
         const info = getAngularComponent(current);
         if (info) {
-            openComponent(info.name);
+            const clickedTag = target.tagName.toLowerCase();
+            openComponent(info.name, clickedTag);
             return;
         }
         current = current.parentElement;

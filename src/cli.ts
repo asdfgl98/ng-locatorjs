@@ -22,12 +22,14 @@ interface ComponentInfo {
   className: string;
   filePath: string;
   selector: string | null;
+  templateFilePath: string | null;
 }
 
 interface ComponentMap {
   [className: string]: {
     filePath: string;
     selector: string | null;
+    templateFilePath: string | null;
   };
 }
 
@@ -42,21 +44,9 @@ interface LocatorConfig {
 
 const DEFAULT_CONFIG: LocatorConfig = {
   include: [
-    "src/**/*.component.ts",
-    "src/**/*.page.ts",
-    "src/**/*.modal.ts",
-    "src/**/*.dialog.ts",
-    "src/**/*.panel.ts",
-    "apps/**/*.component.ts",
-    "apps/**/*.page.ts",
-    "apps/**/*.modal.ts",
-    "apps/**/*.dialog.ts",
-    "apps/**/*.panel.ts",
-    "libs/**/*.component.ts",
-    "libs/**/*.page.ts",
-    "libs/**/*.modal.ts",
-    "libs/**/*.dialog.ts",
-    "libs/**/*.panel.ts",
+    "src/**/*.ts",
+    "apps/**/*.ts",
+    "libs/**/*.ts",
   ],
   exclude: ["node_modules", "dist", ".git", "coverage"],
   output: ".locator/component-map.json",
@@ -126,10 +116,33 @@ function findFiles(projectRoot: string, config: LocatorConfig): string[] {
   return files;
 }
 
+function resolveTemplateFilePath(filePath: string, content: string, projectRoot: string): string | null {
+  // 1. Check for templateUrl
+  const templateUrlMatch = content.match(/templateUrl\s*:\s*['"`](.*?)['"`]/);
+  if (templateUrlMatch) {
+    const templateUrl = templateUrlMatch[1];
+    const dir = path.dirname(filePath);
+    const absoluteTemplatePath = path.resolve(dir, templateUrl);
+    if (fs.existsSync(absoluteTemplatePath)) {
+      return path.relative(projectRoot, absoluteTemplatePath).replace(/\\/g, "/");
+    }
+  }
+
+  // 2. Check for inline template (template: `...` or template: '...')
+  const inlineTemplateMatch = content.match(/template\s*:\s*[`'"]/);
+  if (inlineTemplateMatch) {
+    // Inline template: use the .ts file itself
+    return path.relative(projectRoot, filePath).replace(/\\/g, "/");
+  }
+
+  return null;
+}
+
 function extractComponentInfo(filePath: string, projectRoot: string): ComponentInfo[] {
   const content = fs.readFileSync(filePath, "utf-8");
   const components: ComponentInfo[] = [];
   const relativePath = path.relative(projectRoot, filePath).replace(/\\/g, "/");
+  const templateFilePath = resolveTemplateFilePath(filePath, content, projectRoot);
 
   // Find @Component decorators with selector and class name
   // Supports both 'export class' and 'export default class'
@@ -145,6 +158,7 @@ function extractComponentInfo(filePath: string, projectRoot: string): ComponentI
       className,
       filePath: relativePath,
       selector,
+      templateFilePath,
     });
   }
 
@@ -167,6 +181,7 @@ function extractComponentInfo(filePath: string, projectRoot: string): ComponentI
         className,
         filePath: relativePath,
         selector,
+        templateFilePath,
       });
     }
   }
@@ -184,6 +199,7 @@ function generateComponentMap(projectRoot: string, config: LocatorConfig): Compo
       const entry = {
         filePath: comp.filePath,
         selector: comp.selector,
+        templateFilePath: comp.templateFilePath,
       };
       // Add original name
       map[comp.className] = entry;

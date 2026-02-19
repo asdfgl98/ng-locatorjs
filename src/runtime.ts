@@ -25,6 +25,7 @@ export interface AngularLocatorOptions {
 interface ComponentMapEntry {
   filePath: string;
   selector: string | null;
+  templateFilePath: string | null;
 }
 
 interface ComponentMap {
@@ -318,8 +319,11 @@ async function fetchComponentMap(): Promise<ComponentMap> {
 /**
  * Open a file in the editor via the server.
  */
-async function openFile(filePath: string, line: number = 1, column: number = 1): Promise<boolean> {
-  const url = options.openUrlTemplate || `http://localhost:${options.port}/__locator__/open?file=${encodeURIComponent(filePath)}&line=${line}&column=${column}&editor=${options.editor}`;
+async function openFile(filePath: string, line: number = 1, column: number = 1, tag?: string): Promise<boolean> {
+  let url = options.openUrlTemplate || `http://localhost:${options.port}/__locator__/open?file=${encodeURIComponent(filePath)}&line=${line}&column=${column}&editor=${options.editor}`;
+  if (tag) {
+    url += `&tag=${encodeURIComponent(tag)}`;
+  }
 
   try {
     const response = await fetch(url);
@@ -333,9 +337,20 @@ async function openFile(filePath: string, line: number = 1, column: number = 1):
 /**
  * Open a component by its class name.
  */
-async function openComponent(componentName: string): Promise<boolean> {
+async function openComponent(componentName: string, targetTag?: string): Promise<boolean> {
   const entry = componentMap[componentName];
   if (entry) {
+    // If templateFilePath exists and tag is given, open via open-component endpoint
+    if (targetTag && entry.templateFilePath) {
+      const url = `http://localhost:${options.port}/__locator__/open-component?component=${encodeURIComponent(componentName)}&tag=${encodeURIComponent(targetTag)}&editor=${options.editor}`;
+      try {
+        const response = await fetch(url);
+        const result = (await response.json()) as { success?: boolean };
+        if (result.success === true) return true;
+      } catch {
+        // Fallback to opening ts file
+      }
+    }
     return openFile(entry.filePath);
   }
 
@@ -343,6 +358,16 @@ async function openComponent(componentName: string): Promise<boolean> {
   const freshEntry = freshMap[componentName];
   if (freshEntry) {
     componentMap = freshMap;
+    if (targetTag && freshEntry.templateFilePath) {
+      const url = `http://localhost:${options.port}/__locator__/open-component?component=${encodeURIComponent(componentName)}&tag=${encodeURIComponent(targetTag)}&editor=${options.editor}`;
+      try {
+        const response = await fetch(url);
+        const result = (await response.json()) as { success?: boolean };
+        if (result.success === true) return true;
+      } catch {
+        // Fallback
+      }
+    }
     return openFile(freshEntry.filePath);
   }
 
@@ -373,7 +398,8 @@ function handleClick(event: MouseEvent): void {
     if (highlightedElements.has(current)) {
       const info = getAngularComponent(current);
       if (info) {
-        openComponent(info.name);
+        const clickedTag = target.tagName.toLowerCase();
+        openComponent(info.name, clickedTag);
         return;
       }
     }
@@ -385,7 +411,8 @@ function handleClick(event: MouseEvent): void {
   while (current) {
     const info = getAngularComponent(current);
     if (info) {
-      openComponent(info.name);
+      const clickedTag = target.tagName.toLowerCase();
+      openComponent(info.name, clickedTag);
       return;
     }
     current = current.parentElement;

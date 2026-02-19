@@ -22,7 +22,7 @@ import { installAngularLocator } from 'ng-locator/runtime';
 function initLocator() {
   if ((window as any).ng?.getComponent) {
     installAngularLocator({
-      editor: 'cursor',  // 'cursor' | 'code' | 'webstorm' | 'windsurf' | 'antigravity'
+      editor: 'antigravity',  // 'cursor' | 'code' | 'webstorm' | 'windsurf' | 'antigravity'
     });
   } else {
     setTimeout(initLocator, 100);
@@ -47,7 +47,7 @@ npx ng-locator-scan
 ### 3. 서버 실행
 
 ```bash
-npx ng-locator-server --editor cursor
+npx ng-locator-server --editor antigravity
 ```
 
 ### 4. Angular 개발 서버 실행
@@ -60,7 +60,20 @@ ng serve
 
 - **Alt 키 누르기** → 컴포넌트들이 파란색 테두리로 표시
 - **마우스 이동** → 주황색 하이라이트 + 컴포넌트 정보 툴팁
-- **Alt + 클릭** → 에디터에서 컴포넌트 소스 열기
+- **Alt + 클릭** → 에디터에서 **해당 태그가 위치한 템플릿 라인**으로 바로 이동
+
+### 간소화 모드 (스캔 + 서버 통합)
+
+`ng-locator-scan`을 별도로 실행하지 않고 서버에서 자동 스캔 + watch:
+
+```bash
+npx ng-locator-server --editor antigravity --watch
+```
+
+이 모드에서는:
+- 서버 시작 시 자동으로 컴포넌트 스캔
+- `.ts` / `.html` 파일 변경 감지 시 자동 재스캔
+- 별도의 `ng-locator-scan` 실행 불필요
 
 ---
 
@@ -86,7 +99,23 @@ Options:
   --port, -p     서버 포트 (기본값: 4123)
   --editor, -e   에디터 (cursor, code, webstorm, windsurf, antigravity)
   --map, -m      컴포넌트 맵 파일 경로
+  --watch, -w    자동 스캔 + 파일 감시 모드 (ng-locator-scan 불필요)
+  --config, -c   스캔 설정 파일 경로 (기본값: locator.config.json)
+  --include, -i  추가 스캔 패턴 (여러 번 사용 가능, 기본 패턴에 추가됨)
+  --exclude, -x  추가 제외 디렉토리 (여러 번 사용 가능)
 ```
+
+#### 커스텀 패턴 예시
+
+```bash
+# 기본 패턴 + 커스텀 패턴 추가
+npx ng-locator-server --editor cursor --watch \
+  --include "projects/**/*.component.ts" \
+  --include "custom/**/*.widget.ts" \
+  --exclude "test-utils"
+```
+
+> `--include`/`--exclude`는 기존 기본 패턴에 **추가**됩니다. 기본 패턴을 완전히 교체하려면 `locator.config.json` 파일을 사용하세요.
 
 ---
 
@@ -133,11 +162,13 @@ interface AngularLocatorOptions {
 {
   "scripts": {
     "locator:scan": "ng-locator-scan",
-    "locator:server": "ng-locator-server --editor cursor",
+    "locator:server": "ng-locator-server --editor cursor --watch",
     "dev": "concurrently \"npm run locator:server\" \"ng serve\""
   }
 }
 ```
+
+> `--watch` 옵션 사용 시 `locator:scan`을 별도로 실행할 필요가 없습니다.
 
 ---
 
