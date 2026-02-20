@@ -32,6 +32,34 @@ const EDITOR_SCHEMES: Record<string, string> = {
   antigravity: "antigravity://file/${filePath}:${line}:${column}",
 };
 
+// ─── WSL Detection & Path Helpers ─────────────────────────────────────────────
+
+let _isWSL: boolean | null = null;
+
+function isWSL(): boolean {
+  if (_isWSL !== null) return _isWSL;
+  try {
+    if (process.platform !== "linux") {
+      _isWSL = false;
+      return false;
+    }
+    const procVersion = fs.readFileSync("/proc/version", "utf-8").toLowerCase();
+    _isWSL = procVersion.includes("microsoft") || procVersion.includes("wsl");
+  } catch {
+    _isWSL = false;
+  }
+  return _isWSL;
+}
+
+function wslToWindowsPath(linuxPath: string): string {
+  try {
+    return childProcess.execSync(`wslpath -w "${linuxPath}"`).toString().trim();
+  } catch {
+    // fallback: return as-is
+    return linuxPath;
+  }
+}
+
 interface ServerOptions {
   port?: number;
   editor?: string;
@@ -62,11 +90,7 @@ interface LocatorConfig {
 }
 
 const DEFAULT_SCAN_CONFIG: LocatorConfig = {
-  include: [
-    "src/**/*.ts",
-    "apps/**/*.ts",
-    "libs/**/*.ts",
-  ],
+  include: ["src/**/*.ts", "apps/**/*.ts", "libs/**/*.ts"],
   exclude: ["node_modules", "dist", ".git", "coverage"],
   output: ".locator/component-map.json",
 };
@@ -167,9 +191,7 @@ function scanComponents(projectRoot: string, config: LocatorConfig): Record<stri
     const relativePath = path.relative(projectRoot, file).replace(/\\/g, "/");
     const templateFilePath = resolveTemplateFilePath(file, content, projectRoot);
 
-    const componentMatches = content.matchAll(
-      /@Component\s*\(\s*\{[\s\S]*?selector\s*:\s*['"`](.*?)['"`][\s\S]*?\}\s*\)\s*(?:\n|\s)*export\s+(?:default\s+)?class\s+(\w+)/g
-    );
+    const componentMatches = content.matchAll(/@Component\s*\(\s*\{[\s\S]*?selector\s*:\s*['"`](.*?)['"`][\s\S]*?\}\s*\)\s*(?:\n|\s)*export\s+(?:default\s+)?class\s+(\w+)/g);
 
     for (const match of componentMatches) {
       const entry: ComponentMapEntry = {
@@ -183,9 +205,7 @@ function scanComponents(projectRoot: string, config: LocatorConfig): Record<stri
 
     // Fallback: class name pattern
     if (!content.match(/@Component/)) continue;
-    const classMatches = content.matchAll(
-      /export\s+(?:default\s+)?class\s+(\w+(?:Component|Page|Modal|Dialog|Panel))/g
-    );
+    const classMatches = content.matchAll(/export\s+(?:default\s+)?class\s+(\w+(?:Component|Page|Modal|Dialog|Panel))/g);
     for (const match of classMatches) {
       if (map[match[1]]) continue; // Already found via @Component
       const selectorMatch = content.match(/selector\s*:\s*['"`](.*?)['"`]/);
@@ -341,9 +361,15 @@ function openFile(filePath: string, line: number = 1, column: number = 1, overri
   const editor = overrideEditor || options.editor || "cursor";
   let absolutePath = path.resolve(process.cwd(), filePath);
 
-  // Normalize Windows paths for URI schemes (replace \ with /)
+  const runningInWSL = isWSL();
+
+  // Convert path for the target OS
   if (process.platform === "win32") {
+    // Native Windows: normalize backslashes for URI
     absolutePath = absolutePath.replace(/\\/g, "/");
+  } else if (runningInWSL) {
+    // WSL: convert Linux path to Windows path for the host editor
+    absolutePath = wslToWindowsPath(absolutePath).replace(/\\/g, "/");
   }
 
   const scheme = getEditorScheme(editor).replace("${filePath}", absolutePath).replace("${line}", String(line)).replace("${column}", String(column));
@@ -351,10 +377,12 @@ function openFile(filePath: string, line: number = 1, column: number = 1, overri
   console.log(`[@locator/angular-server] Opening (${editor}): ${scheme}`);
 
   try {
-    const platform = process.platform;
-    if (platform === "win32") {
+    if (process.platform === "win32") {
       childProcess.exec(`start "" "${scheme}"`);
-    } else if (platform === "darwin") {
+    } else if (runningInWSL) {
+      // WSL: use cmd.exe to trigger Windows host URI handler
+      childProcess.exec(`cmd.exe /c start "" "${scheme}"`);
+    } else if (process.platform === "darwin") {
       childProcess.exec(`open "${scheme}"`);
     } else {
       childProcess.exec(`xdg-open "${scheme}"`);
@@ -444,13 +472,15 @@ function handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
       if (tagPos) {
         const success = openFile(componentInfo.templateFilePath, tagPos.line, tagPos.column, editor);
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({
-          success,
-          filePath: componentInfo.templateFilePath,
-          line: tagPos.line,
-          column: tagPos.column,
-          tag,
-        }));
+        res.end(
+          JSON.stringify({
+            success,
+            filePath: componentInfo.templateFilePath,
+            line: tagPos.line,
+            column: tagPos.column,
+            tag,
+          }),
+        );
         return;
       }
     }
