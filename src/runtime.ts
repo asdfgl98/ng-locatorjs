@@ -335,14 +335,49 @@ async function openFile(filePath: string, line: number = 1, column: number = 1, 
 }
 
 /**
+ * Given a click target and a component host element, determine:
+ * 1. The "effective" element to report (walks up from target to find the nearest ancestor
+ *    that is a direct/meaningful child of the component host, using the target itself if
+ *    it is already a known HTML interactive/block element like button, a, input, etc.)
+ * 2. The 0-based index of that element among same-tag siblings within the component host.
+ *
+ * This handles the common case where event.target is an inner text node or icon inside
+ * a <button>, which would otherwise make tagName = "span" and index = -1.
+ */
+function resolveClickedTagInfo(componentHost: HTMLElement, target: HTMLElement): { tagName: string; tagIndex: number } {
+  // Prefer walking up to a "meaningful" element before the component host
+  // These are tags that are typically the intended click target in templates
+  const MEANINGFUL_TAGS = new Set(["button", "a", "input", "select", "textarea", "label", "li", "tr", "td", "th", "details", "summary"]);
+
+  // Walk from target up to (but not including) the component host
+  let el: HTMLElement | null = target;
+  while (el && el !== componentHost) {
+    if (MEANINGFUL_TAGS.has(el.tagName.toLowerCase())) {
+      // Found a meaningful ancestor — use it as the effective element
+      const tagName = el.tagName.toLowerCase();
+      const sameTagElements = Array.from(componentHost.querySelectorAll(tagName));
+      const index = sameTagElements.indexOf(el);
+      return { tagName, tagIndex: index >= 0 ? index : 0 };
+    }
+    el = el.parentElement;
+  }
+
+  // No meaningful ancestor found: use the original target
+  const tagName = target.tagName.toLowerCase();
+  const sameTagElements = Array.from(componentHost.querySelectorAll(tagName));
+  const index = sameTagElements.indexOf(target);
+  return { tagName, tagIndex: index >= 0 ? index : 0 };
+}
+
+/**
  * Open a component by its class name.
  */
-async function openComponent(componentName: string, targetTag?: string): Promise<boolean> {
+async function openComponent(componentName: string, targetTag?: string, tagIndex: number = 0): Promise<boolean> {
   const entry = componentMap[componentName];
   if (entry) {
     // If templateFilePath exists and tag is given, open via open-component endpoint
     if (targetTag && entry.templateFilePath) {
-      const url = `http://localhost:${options.port}/__locator__/open-component?component=${encodeURIComponent(componentName)}&tag=${encodeURIComponent(targetTag)}&editor=${options.editor}`;
+      const url = `http://localhost:${options.port}/__locator__/open-component?component=${encodeURIComponent(componentName)}&tag=${encodeURIComponent(targetTag)}&tagIndex=${tagIndex}&editor=${options.editor}`;
       try {
         const response = await fetch(url);
         const result = (await response.json()) as { success?: boolean };
@@ -359,7 +394,7 @@ async function openComponent(componentName: string, targetTag?: string): Promise
   if (freshEntry) {
     componentMap = freshMap;
     if (targetTag && freshEntry.templateFilePath) {
-      const url = `http://localhost:${options.port}/__locator__/open-component?component=${encodeURIComponent(componentName)}&tag=${encodeURIComponent(targetTag)}&editor=${options.editor}`;
+      const url = `http://localhost:${options.port}/__locator__/open-component?component=${encodeURIComponent(componentName)}&tag=${encodeURIComponent(targetTag)}&tagIndex=${tagIndex}&editor=${options.editor}`;
       try {
         const response = await fetch(url);
         const result = (await response.json()) as { success?: boolean };
@@ -398,8 +433,8 @@ function handleClick(event: MouseEvent): void {
     if (highlightedElements.has(current)) {
       const info = getAngularComponent(current);
       if (info) {
-        const clickedTag = target.tagName.toLowerCase();
-        openComponent(info.name, clickedTag);
+        const { tagName: clickedTag, tagIndex } = resolveClickedTagInfo(current, target);
+        openComponent(info.name, clickedTag, tagIndex);
         return;
       }
     }
@@ -411,8 +446,8 @@ function handleClick(event: MouseEvent): void {
   while (current) {
     const info = getAngularComponent(current);
     if (info) {
-      const clickedTag = target.tagName.toLowerCase();
-      openComponent(info.name, clickedTag);
+      const { tagName: clickedTag, tagIndex } = resolveClickedTagInfo(current, target);
+      openComponent(info.name, clickedTag, tagIndex);
       return;
     }
     current = current.parentElement;

@@ -336,8 +336,10 @@ function getEditorScheme(editor: string): string {
 /**
  * Find the line number of a tag in a template file.
  * Reads the file at request time so changes are always reflected.
+ *
+ * @param tagIndex - 0-based index of which occurrence to return (default: 0, i.e. first match)
  */
-function findTagLine(templateRelativePath: string, tagName: string): { line: number; column: number } | null {
+function findTagLine(templateRelativePath: string, tagName: string, tagIndex: number = 0): { line: number; column: number } | null {
   const absolutePath = path.resolve(process.cwd(), templateRelativePath);
 
   try {
@@ -359,15 +361,21 @@ function findTagLine(templateRelativePath: string, tagName: string): { line: num
       }
     }
 
-    // Search for the tag in template content
+    // Collect all occurrences of the tag in template content
     // Use regex to match exact tag name (e.g. <p> should not match <path>)
     // (?=[\s>/]|$) ensures tag boundary: space, >, /, or end of line (multi-line attributes)
     const tagRegex = new RegExp(`<${tagName}(?=[\\s>/]|$)`, "i");
+    const matches: { line: number; column: number }[] = [];
     for (let i = templateStartLine; i < lines.length; i++) {
       const match = tagRegex.exec(lines[i]);
       if (match) {
-        return { line: i + 1, column: match.index + 1 };
+        matches.push({ line: i + 1, column: match.index + 1 });
       }
+    }
+
+    if (matches.length > 0) {
+      // Clamp tagIndex to valid range to handle edge cases
+      return matches[Math.min(tagIndex, matches.length - 1)];
     }
   } catch {
     // File read failed
@@ -473,11 +481,12 @@ function handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
 
     // If tag is provided, try to find it in the file
     if (tag) {
-      const tagPos = findTagLine(filePath, tag);
+      const tagIndex = parseInt(urlObj.searchParams.get("tagIndex") || "0", 10);
+      const tagPos = findTagLine(filePath, tag, tagIndex);
       if (tagPos) {
         const success = openFile(filePath, tagPos.line, tagPos.column, editor);
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success, line: tagPos.line, column: tagPos.column }));
+        res.end(JSON.stringify({ success, line: tagPos.line, column: tagPos.column, tagIndex }));
         return;
       }
     }
@@ -509,7 +518,8 @@ function handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
 
     // If tag is provided and template file exists, find the tag line in template
     if (tag && componentInfo.templateFilePath) {
-      const tagPos = findTagLine(componentInfo.templateFilePath, tag);
+      const tagIndex = parseInt(urlObj.searchParams.get("tagIndex") || "0", 10);
+      const tagPos = findTagLine(componentInfo.templateFilePath, tag, tagIndex);
       if (tagPos) {
         const success = openFile(componentInfo.templateFilePath, tagPos.line, tagPos.column, editor);
         res.writeHead(200, { "Content-Type": "application/json" });
@@ -520,6 +530,7 @@ function handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
             line: tagPos.line,
             column: tagPos.column,
             tag,
+            tagIndex,
           }),
         );
         return;
