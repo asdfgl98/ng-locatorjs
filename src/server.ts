@@ -32,6 +32,16 @@ const EDITOR_SCHEMES: Record<string, string> = {
   antigravity: "antigravity://file/${filePath}:${line}:${column}",
 };
 
+// ─── Editor CLI commands (for WSL direct invocation) ──────────────────────────
+
+const EDITOR_CLI: Record<string, string> = {
+  cursor: "cursor",
+  code: "code",
+  webstorm: "webstorm",
+  windsurf: "windsurf",
+  antigravity: "antigravity",
+};
+
 // ─── WSL Detection & Path Helpers ─────────────────────────────────────────────
 
 let _isWSL: boolean | null = null;
@@ -57,6 +67,15 @@ function wslToWindowsPath(linuxPath: string): string {
   } catch {
     // fallback: return as-is
     return linuxPath;
+  }
+}
+
+function hasCliCommand(cmd: string): boolean {
+  try {
+    childProcess.execSync(`which ${cmd} 2>/dev/null`, { stdio: "pipe" });
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -359,29 +378,51 @@ function findTagLine(templateRelativePath: string, tagName: string): { line: num
 
 function openFile(filePath: string, line: number = 1, column: number = 1, overrideEditor?: string): boolean {
   const editor = overrideEditor || options.editor || "cursor";
-  let absolutePath = path.resolve(process.cwd(), filePath);
+  const absolutePath = path.resolve(process.cwd(), filePath);
 
   const runningInWSL = isWSL();
 
-  // Convert path for the target OS
-  if (process.platform === "win32") {
-    // Native Windows: normalize backslashes for URI
-    absolutePath = absolutePath.replace(/\\/g, "/");
-  } else if (runningInWSL) {
-    // WSL: convert Linux path to Windows path for the host editor
-    absolutePath = wslToWindowsPath(absolutePath).replace(/\\/g, "/");
+  // ── WSL: prefer editor CLI with Linux path (most reliable) ──
+  if (runningInWSL) {
+    const cliCmd = EDITOR_CLI[editor];
+    if (cliCmd && hasCliCommand(cliCmd)) {
+      const gotoArg = `${absolutePath}:${line}:${column}`;
+      console.log(`[@locator/angular-server] Opening (${editor} CLI): ${cliCmd} --goto ${gotoArg}`);
+      try {
+        childProcess.exec(`${cliCmd} --goto "${gotoArg}"`);
+        return true;
+      } catch (error) {
+        console.error(`[@locator/angular-server] CLI failed, falling back to URI scheme:`, error);
+      }
+    }
+
+    // Fallback: cmd.exe URI scheme
+    const winPath = wslToWindowsPath(absolutePath).replace(/\\/g, "/").replace(/^\/\//, "/");
+    const scheme = getEditorScheme(editor).replace("${filePath}", winPath).replace("${line}", String(line)).replace("${column}", String(column));
+
+    console.log(`[@locator/angular-server] Opening (${editor} URI fallback): ${scheme}`);
+    try {
+      childProcess.exec(`cmd.exe /c start "" "${scheme}"`);
+      return true;
+    } catch (error) {
+      console.error(`[@locator/angular-server] Failed to open file:`, error);
+      return false;
+    }
   }
 
-  const scheme = getEditorScheme(editor).replace("${filePath}", absolutePath).replace("${line}", String(line)).replace("${column}", String(column));
+  // ── Non-WSL platforms ──
+  let normalizedPath = absolutePath;
+  if (process.platform === "win32") {
+    normalizedPath = absolutePath.replace(/\\/g, "/");
+  }
+
+  const scheme = getEditorScheme(editor).replace("${filePath}", normalizedPath).replace("${line}", String(line)).replace("${column}", String(column));
 
   console.log(`[@locator/angular-server] Opening (${editor}): ${scheme}`);
 
   try {
     if (process.platform === "win32") {
       childProcess.exec(`start "" "${scheme}"`);
-    } else if (runningInWSL) {
-      // WSL: use cmd.exe to trigger Windows host URI handler
-      childProcess.exec(`cmd.exe /c start "" "${scheme}"`);
     } else if (process.platform === "darwin") {
       childProcess.exec(`open "${scheme}"`);
     } else {

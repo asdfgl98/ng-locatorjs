@@ -30,12 +30,52 @@ const EDITOR_SCHEMES = {
     windsurf: "windsurf://file/${filePath}:${line}:${column}",
     antigravity: "antigravity://file/${filePath}:${line}:${column}",
 };
+// ─── Editor CLI commands (for WSL direct invocation) ──────────────────────────
+const EDITOR_CLI = {
+    cursor: "cursor",
+    code: "code",
+    webstorm: "webstorm",
+    windsurf: "windsurf",
+    antigravity: "antigravity",
+};
+// ─── WSL Detection & Path Helpers ─────────────────────────────────────────────
+let _isWSL = null;
+function isWSL() {
+    if (_isWSL !== null)
+        return _isWSL;
+    try {
+        if (process.platform !== "linux") {
+            _isWSL = false;
+            return false;
+        }
+        const procVersion = fs.readFileSync("/proc/version", "utf-8").toLowerCase();
+        _isWSL = procVersion.includes("microsoft") || procVersion.includes("wsl");
+    }
+    catch {
+        _isWSL = false;
+    }
+    return _isWSL;
+}
+function wslToWindowsPath(linuxPath) {
+    try {
+        return childProcess.execSync(`wslpath -w "${linuxPath}"`).toString().trim();
+    }
+    catch {
+        // fallback: return as-is
+        return linuxPath;
+    }
+}
+function hasCliCommand(cmd) {
+    try {
+        childProcess.execSync(`which ${cmd} 2>/dev/null`, { stdio: "pipe" });
+        return true;
+    }
+    catch {
+        return false;
+    }
+}
 const DEFAULT_SCAN_CONFIG = {
-    include: [
-        "src/**/*.ts",
-        "apps/**/*.ts",
-        "libs/**/*.ts",
-    ],
+    include: ["src/**/*.ts", "apps/**/*.ts", "libs/**/*.ts"],
     exclude: ["node_modules", "dist", ".git", "coverage"],
     output: ".locator/component-map.json",
 };
@@ -275,19 +315,47 @@ function findTagLine(templateRelativePath, tagName) {
 }
 function openFile(filePath, line = 1, column = 1, overrideEditor) {
     const editor = overrideEditor || options.editor || "cursor";
-    let absolutePath = path.resolve(process.cwd(), filePath);
-    // Normalize Windows paths for URI schemes (replace \ with /)
-    if (process.platform === "win32") {
-        absolutePath = absolutePath.replace(/\\/g, "/");
+    const absolutePath = path.resolve(process.cwd(), filePath);
+    const runningInWSL = isWSL();
+    // ── WSL: prefer editor CLI with Linux path (most reliable) ──
+    if (runningInWSL) {
+        const cliCmd = EDITOR_CLI[editor];
+        if (cliCmd && hasCliCommand(cliCmd)) {
+            const gotoArg = `${absolutePath}:${line}:${column}`;
+            console.log(`[@locator/angular-server] Opening (${editor} CLI): ${cliCmd} --goto ${gotoArg}`);
+            try {
+                childProcess.exec(`${cliCmd} --goto "${gotoArg}"`);
+                return true;
+            }
+            catch (error) {
+                console.error(`[@locator/angular-server] CLI failed, falling back to URI scheme:`, error);
+            }
+        }
+        // Fallback: cmd.exe URI scheme
+        const winPath = wslToWindowsPath(absolutePath).replace(/\\/g, "/").replace(/^\/\//, "/");
+        const scheme = getEditorScheme(editor).replace("${filePath}", winPath).replace("${line}", String(line)).replace("${column}", String(column));
+        console.log(`[@locator/angular-server] Opening (${editor} URI fallback): ${scheme}`);
+        try {
+            childProcess.exec(`cmd.exe /c start "" "${scheme}"`);
+            return true;
+        }
+        catch (error) {
+            console.error(`[@locator/angular-server] Failed to open file:`, error);
+            return false;
+        }
     }
-    const scheme = getEditorScheme(editor).replace("${filePath}", absolutePath).replace("${line}", String(line)).replace("${column}", String(column));
+    // ── Non-WSL platforms ──
+    let normalizedPath = absolutePath;
+    if (process.platform === "win32") {
+        normalizedPath = absolutePath.replace(/\\/g, "/");
+    }
+    const scheme = getEditorScheme(editor).replace("${filePath}", normalizedPath).replace("${line}", String(line)).replace("${column}", String(column));
     console.log(`[@locator/angular-server] Opening (${editor}): ${scheme}`);
     try {
-        const platform = process.platform;
-        if (platform === "win32") {
+        if (process.platform === "win32") {
             childProcess.exec(`start "" "${scheme}"`);
         }
-        else if (platform === "darwin") {
+        else if (process.platform === "darwin") {
             childProcess.exec(`open "${scheme}"`);
         }
         else {

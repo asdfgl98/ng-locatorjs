@@ -24,25 +24,25 @@ npm install github:asdfgl98/ng-locatorjs
 ### 1. main.ts에 추가
 
 ```typescript
-import { bootstrapApplication } from '@angular/platform-browser';
-import { appConfig } from './app/app.config';
-import { AppComponent } from './app/app.component';
-import { installAngularLocator } from 'ng-locator';
+import { bootstrapApplication } from "@angular/platform-browser";
+import { appConfig } from "./app/app.config";
+import { AppComponent } from "./app/app.component";
+import { installAngularLocator } from "ng-locator";
 
 function initLocator() {
   if ((window as any).ng?.getComponent) {
     installAngularLocator({
-      editor: 'cursor',  // 'cursor' | 'code' | 'webstorm' | 'windsurf' | 'antigravity'
+      editor: "antigravity", // 'cursor' | 'code' | 'webstorm' | 'windsurf' | 'antigravity'
     });
   } else {
     setTimeout(initLocator, 100);
   }
 }
 
-if (document.readyState === 'complete') {
+if (document.readyState === "complete") {
   initLocator();
 } else {
-  window.addEventListener('load', initLocator);
+  window.addEventListener("load", initLocator);
 }
 
 bootstrapApplication(AppComponent, appConfig).catch(console.error);
@@ -119,10 +119,7 @@ npx ng-locator-server --editor cursor --watch \
 
 ```json
 {
-  "include": [
-    "src/**/*.ts",
-    "projects/**/*.ts"
-  ],
+  "include": ["src/**/*.ts", "projects/**/*.ts"],
   "exclude": ["node_modules", "dist", ".git"],
   "output": ".locator/component-map.json"
 }
@@ -135,7 +132,7 @@ npx ng-locator-server --editor cursor --watch \
 ```json
 {
   "scripts": {
-    "locator": "ng-locator-server --editor cursor --watch",
+    "locator": "ng-locator-server --editor cursor --watch"
   }
 }
 ```
@@ -146,9 +143,9 @@ npx ng-locator-server --editor cursor --watch \
 
 ```typescript
 interface AngularLocatorOptions {
-  port?: number;              // 서버 포트 (기본값: 4123)
-  editor?: 'cursor' | 'code' | 'webstorm' | 'windsurf' | 'antigravity';
-  modifier?: 'alt' | 'ctrl' | 'meta' | 'shift';  // 클릭 키 (기본값: 'alt')
+  port?: number; // 서버 포트 (기본값: 4123)
+  editor?: "cursor" | "code" | "webstorm" | "windsurf" | "antigravity";
+  modifier?: "alt" | "ctrl" | "meta" | "shift"; // 클릭 키 (기본값: 'alt')
 }
 ```
 
@@ -164,11 +161,11 @@ interface AngularLocatorOptions {
 
 ## 문제 해결
 
-| 문제 | 해결 방법 |
-|------|-----------|
+| 문제                   | 해결 방법                                 |
+| ---------------------- | ----------------------------------------- |
 | 컴포넌트가 열리지 않음 | `ng-locator-server` 실행 확인 (포트 4123) |
-| Angular not detected | 개발 모드(`ng serve`)로 실행 중인지 확인 |
-| 태그 라인이 안 맞음 | `/__locator__/reload` 엔드포인트로 재스캔 |
+| Angular not detected   | 개발 모드(`ng serve`)로 실행 중인지 확인  |
+| 태그 라인이 안 맞음    | `/__locator__/reload` 엔드포인트로 재스캔 |
 
 ---
 
